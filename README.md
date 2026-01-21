@@ -6,38 +6,8 @@ O objetivo desta documentação é facilitar a **implementação, validação e 
 
 ---
 
-## 📘 Documentos Disponíveis
-
-### 📄 Descrição Geral do Layout
-
-Apresenta uma visão geral do layout, incluindo:
-
-- finalidade do padrão de arquivos;
-- conceitos básicos de arquivos TXT de largura fixa;
-- tipos de dados e regras de preenchimento;
-- visão funcional das entidades.
-
-➡️ **[Acessar descrição geral do layout](pages/dicionario_dados.md)**
-
----
-
-### 📊 Guia Campo a Campo
-
-Documento técnico detalhado que descreve **todas as entidades e campos**, informando:
-
-- posição inicial e final no registro TXT;
-- tipo e tamanho do campo;
-- obrigatoriedade;
-- explicação funcional;
-- exemplo de leitura e fatiamento da linha.
-
-➡️ **[Acessar guia campo a campo](pages/guia_campo_a_campo.md)**
-
----
-
-## ℹ️ Observações
-
-- Os arquivos TXT não possuem separadores de campo.
-- As posições são baseadas em índice 1.
-- O layout deve ser seguido rigorosamente para garantir a integridade dos dados.
-- Em caso de divergência, prevalece o documento oficial do layout.
+📄 Documentação autenticação: veja **[autenticacao.md](./pages/autenticacao.md)**.
+📄 Receitas de Transferência: veja **[receitas_transferencias.md](./pages/receitas_transferencias.md)**.
+📄 Receitas Previstas: veja **[receitas_previstas.md](./pages/receitas_previstas.md)**.
+📄 Remessas: Veja **[remessa.md](./pages/remessa.md)**.
+📄 Empenhos: Veja **[empenho.md](./pages/empenho.md)**.
