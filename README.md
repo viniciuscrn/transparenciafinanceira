@@ -1,76 +1,80 @@
-# Documentação do Layout dos Arquivos – 2025
+# Projeto de Transparência para Órgãos Públicos — API
 
-Esta documentação descreve a estrutura técnica do **Layout dos Arquivos – Versão 1.0 – Exercício 2025**, utilizado para geração, envio e interpretação de **arquivos TXT de largura fixa**.
+API do **Projeto de Transparência**, focada em autenticação (Laravel Sanctum), gestão de usuários e exposição de dados públicos (empenhos, receitas, remessas, etc.).
 
-O objetivo deste material é apoiar o **desenvolvimento de sistemas, validação de dados e auditoria das remessas**, fornecendo uma referência clara sobre:
+## Base URL
 
-- estrutura dos arquivos
-- entidades e relacionamentos
-- posição e tipo de cada campo
-- regras de preenchimento
-- exemplos de interpretação dos registros
+- `{{BASE_URL}}/api`
 
-Toda a documentação foi organizada em páginas específicas para cada entidade ou processo do layout.
+> Substitua `{{BASE_URL}}` pela URL do seu ambiente (ex.: `http://localhost:8000`).
 
----
+## Autenticação
 
-# Estrutura da Documentação
+A API usa **Bearer Token** (Laravel Sanctum).
 
-## Segurança e Autenticação
-
-- 📄 **Autenticação**
-  [autenticacao.md](./pages/autenticacao.md)
+- Header obrigatório nos endpoints protegidos:
+  - `Authorization: Bearer <TOKEN>`
+  - `Accept: application/json`
 
 ---
 
-## Receitas
+## Documentação
 
-- 📄 **Receitas de Transferências**
-  [receitas_transferencias.md](./pages/receitas_transferencias.md)
+A documentação detalhada de cada módulo está na pasta [`docs/`](./docs):
 
-- 📄 **Receitas Previstas**
-  [receitas_previstas.md](./pages/receitas_previstas.md)
-
----
-
-## Remessas
-
-- 📄 **Remessas**
-  [remessa.md](./pages/remessa.md)
-
----
-
-## Despesas
-
-- 📄 **Empenhos**
-  [empenho.md](./pages/empenho.md)
+| Módulo                    | Arquivo                                                          | Descrição                                               |
+| ------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------- |
+| Autenticação              | [autenticacao.md](./pages/autenticacao.md)                       | Login, logout e dados do usuário autenticado            |
+| Usuários                  | [usuarios.md](./pages/usuarios.md)                               | CRUD de usuários (UserController)                       |
+| Remessas                  | [remessa.md](./pages/remessa.md)                                 | Endpoints de remessas                                   |
+| Empenhos                  | [empenho.md](./pages/empenho.md)                                 | Endpoints de empenhos                                   |
+| Empenhos — Filtros        | [empenhos-filtros.md](./pages/empenhos-filtros.md)               | Referência completa dos filtros do endpoint de empenhos |
+| Receitas Previstas        | [receitas_previstas.md](./pages/receitas_previstas.md)           | Endpoints de receitas previstas                         |
+| Receitas de Transferência | [receitas_transferencias.md](./pages/receitas_transferencias.md) | Endpoints de receitas de transferência                  |
 
 ---
 
-## Cadastros
+## Endpoints (Resumo)
 
-- 📄 **Fornecedores**
-  [fornecedores.md](./pages/fornecedores.md)
+### Auth
+
+- `POST /login` — Autentica e retorna token + dados do usuário
+- `POST /logout` — Revoga o token atual (**protegido**)
+- `GET /me` — Retorna o usuário autenticado (**protegido**)
+
+📄 Detalhes em [docs/autenticacao.md](./docs/autenticacao.md).
+
+### Usuários
+
+> Recomendação: proteger com `auth:sanctum` e, quando aplicável, restringir por perfil (ex.: `role:admin`).
+
+- `GET /users` — Lista usuários (paginação)
+- `POST /users` — Cria usuário e atribui perfil (role)
+- `GET /users/{user}` — Detalha usuário
+- `PUT|PATCH /users/{user}` — Atualiza usuário (e role opcional)
+- `DELETE /users/{user}` — Remove usuário (bloqueia autoexclusão)
+
+📄 Detalhes em [docs/usuarios.md](./docs/usuarios.md).
 
 ---
 
-# Observações
+## Convenções de Resposta
 
-- Todos os arquivos seguem o padrão **TXT de largura fixa**.
-- As posições dos campos são definidas pelo **layout oficial do exercício 2025**.
-- A interpretação dos registros deve considerar:
-  - posição inicial
-  - posição final
-  - tipo de dado
-  - regra de preenchimento
+- `200 OK` para operações de leitura/atualização
+- `201 Created` para criação
+- `204 No Content` para remoção
+- Erros de validação: `422 Unprocessable Entity`
+
+## Paginação
+
+Endpoints de listagem (ex.: `GET /users`) retornam paginação padrão do Laravel (`current_page`, `data`, `per_page`, `total`, etc.).
 
 ---
 
-💡 **Sugestão**
+## Referência rápida de headers
 
-Esta documentação pode ser expandida com:
-
-- diagramas de fluxo das remessas
-- modelo entidade-relacionamento (MER)
-- exemplos completos de arquivos TXT
-- guias de interpretação campo a campo
+```http
+Accept: application/json
+Authorization: Bearer <TOKEN>
+Content-Type: application/json
+```
