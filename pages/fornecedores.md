@@ -2,6 +2,8 @@
 
 Esta documentação descreve os endpoints disponíveis no **FornecedorController**, responsáveis pela gestão e consulta de fornecedores.
 
+> Todos os endpoints exigem autenticação (`Authorization: Bearer <TOKEN>`).
+
 Base URL de exemplo:
 
 ```
@@ -20,6 +22,7 @@ Campos da tabela `fornecedores`:
 | cpf_cnpj    | string(14) | CPF ou CNPJ do fornecedor (apenas números) |
 | nome        | string     | Nome ou razão social                       |
 | tipo_pessoa | string(2)  | PF (Pessoa Física) ou PJ (Pessoa Jurídica) |
+| cargo       | string     | Cargo atual do beneficiário (usado em diárias) |
 | created_at  | datetime   | Data de criação                            |
 | updated_at  | datetime   | Data de atualização                        |
 
@@ -62,6 +65,7 @@ GET /api/fornecedores?q=vale
       "cpf_cnpj": "12223678000201",
       "nome": "VALE DO PAJEU IGUARACI",
       "tipo_pessoa": "PJ",
+      "cargo": null,
       "created_at": "2026-03-10T23:01:13.000000Z",
       "updated_at": "2026-03-10T23:01:13.000000Z"
     }
@@ -95,6 +99,7 @@ GET /api/fornecedores/3
   "cpf_cnpj": "12223678000201",
   "nome": "VALE DO PAJEU IGUARACI",
   "tipo_pessoa": "PJ",
+  "cargo": null,
   "created_at": "2026-03-10T23:01:13.000000Z",
   "updated_at": "2026-03-10T23:01:13.000000Z"
 }
@@ -116,11 +121,19 @@ POST /api/fornecedores
 {
   "cpf_cnpj": "12223678000201",
   "nome": "VALE DO PAJEU IGUARACI",
-  "tipo_pessoa": "PJ"
+  "tipo_pessoa": "PJ",
+  "cargo": null
 }
 ```
 
-### Resposta
+| Campo         | Obrigatório | Regra                                                   |
+| ------------- | ----------: | ------------------------------------------------------- |
+| `cpf_cnpj`    | sim         | 11 ou 14 dígitos (máscara é removida); único            |
+| `nome`        | não         | Máx. 255                                                |
+| `tipo_pessoa` | não         | `PF` ou `PJ`; inferido pelo tamanho do documento        |
+| `cargo`       | não         | Máx. 150                                                |
+
+### Resposta (`201`)
 
 ```json
 {
@@ -228,7 +241,8 @@ GET /api/fornecedores/buscar/12223678000201
 ```json
 {
   "success": true,
-  "origem": "TCE",
+  "message": "Fornecedor encontrado no banco local.",
+  "origem": "LOCAL",
   "data": {
     "cpf_cnpj": "12223678000201",
     "nome": "VALE DO PAJEU IGUARACI",
@@ -236,6 +250,19 @@ GET /api/fornecedores/buscar/12223678000201
   }
 }
 ```
+
+### Não encontrado ou documento inválido (`404`)
+
+```json
+{
+  "success": false,
+  "message": "Fornecedor não encontrado.",
+  "origem": null,
+  "data": null
+}
+```
+
+> Existe também a versão pública deste endpoint: `GET /api/empenhos/buscarFornecedorTce/{cpfCnpj}` (ver [empenho.md](./empenho.md)).
 
 ### Possíveis origens
 

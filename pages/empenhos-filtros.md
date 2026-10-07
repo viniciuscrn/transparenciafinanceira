@@ -8,7 +8,7 @@ Documentação dos filtros disponíveis no endpoint de listagem de empenhos.
 
 ## Sumário
 
-- [Novos filtros](#novos-filtros)
+- [Filtros por classificação e beneficiário](#filtros-por-classificação-e-beneficiário)
   - [`categoria_economica`](#1-categoria_economica)
   - [`grupo_natureza`](#2-grupo_natureza)
   - [`unidade_orcamentaria`](#3-unidade_orcamentaria)
@@ -19,7 +19,7 @@ Documentação dos filtros disponíveis no endpoint de listagem de empenhos.
 
 ---
 
-## Novos filtros
+## Filtros por classificação e beneficiário
 
 ### 1. `categoria_economica`
 
@@ -115,7 +115,7 @@ GET /api/empenhos?beneficiario=construtora silva
 
 ## Exemplos combinados
 
-Os novos filtros podem ser combinados livremente entre si e com os filtros já existentes.
+Os filtros podem ser combinados livremente entre si.
 
 ### Despesas de capital de uma unidade específica
 
@@ -192,19 +192,21 @@ Todos os filtros aceitos pelo endpoint `GET /api/empenhos`:
 | `mes` | `integer` (1–12) | Mês do empenho |
 | `remessa_id` | `integer` | ID da remessa |
 | `unidade_codigo` | `string` | Código da unidade orçamentária |
-| `unidade_orcamentaria` | `string` | **(novo)** Código da unidade — alias para uso em selects |
+| `unidade_orcamentaria` | `string` | Código da unidade — alias para uso em selects |
 | `numero_empenho` | `string` | Número do empenho (match exato) |
 | `cpf_cnpj` | `string` | CPF ou CNPJ do credor (com normalização) |
 | `data_ini` | `date` (`YYYY-MM-DD`) | Data inicial do empenho |
 | `data_fim` | `date` (`YYYY-MM-DD`) | Data final do empenho |
 | `min_valor` | `numeric` | Valor mínimo empenhado |
 | `max_valor` | `numeric` | Valor máximo empenhado |
-| `categoria_economica` | `string` (1 char) | **(novo)** Categoria econômica |
-| `grupo_natureza` | `string` (1 char) | **(novo)** Grupo de natureza |
-| `beneficiario` | `string` | **(novo)** Nome do beneficiário (busca parcial) |
+| `categoria_economica` | `string` (1 char) | Categoria econômica |
+| `grupo_natureza` | `string` (1 char) | Grupo de natureza |
+| `beneficiario` | `string` | Nome do beneficiário (busca parcial) |
 | `elemento_despesa` | `string` | Elemento de despesa (match único) |
 | `elementos` | `string` (CSV) | Múltiplos elementos separados por vírgula |
+| `modalidade_licitacao` | `string` (máx. 10) | Código da modalidade de licitação (match exato) |
 | `somente_diarias` | `boolean` | Apenas empenhos de diárias |
+| `diaria_pendente` | `boolean` | Empenhos de diárias sem dados complementares cadastrados (ver [diarias.md](./diarias.md)) |
 | `q` | `string` (max 100) | Busca livre em número, descrição, unidade e CPF/CNPJ |
 | `per_page` | `integer` (1–200) | Itens por página (default 20) |
 | `export` | `boolean` | Quando `true`, retorna todos os registros sem paginação |
@@ -215,4 +217,5 @@ Todos os filtros aceitos pelo endpoint `GET /api/empenhos`:
 
 - Todos os filtros são **opcionais** e podem ser combinados livremente.
 - Filtros vazios ou ausentes são ignorados.
-- A resposta padrão é paginada (formato Laravel paginator). Para exportação completa, use `export=true`.
+- A resposta padrão é paginada (formato Laravel paginator) e traz o bloco `totais` (empenhado, liquidado e pago de todos os registros filtrados). Para exportação completa, use `export=true`.
+- O filtro `beneficiario` compara o CPF/CNPJ do fornecedor ignorando pontuação e zeros à esquerda.

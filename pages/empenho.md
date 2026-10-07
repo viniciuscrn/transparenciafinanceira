@@ -1,157 +1,102 @@
-# Empenhos — Documentação da API para Consumo do Front-end
+# Empenhos — Documentação da API
 
 ## Visão Geral
 
-O `EmpenhoController` disponibiliza endpoints de consulta de empenhos com dados agregados de:
+O `EmpenhoController` disponibiliza a consulta de empenhos com os dados agregados de:
 
 - liquidações
-- pagamentos
-- itens de pagamento
-- resumo financeiro da despesa
+- pagamentos e itens de pagamento
+- resumo financeiro (liquidado, pago e saldos)
+- unidade orçamentária
+- fornecedor (beneficiário)
+- dados complementares de diárias
+- descrições das tabelas internas (função, subfunção, natureza da despesa, fonte de recurso etc.)
 
-Além disso, oferece um endpoint para consulta de fornecedor no TCE a partir de CPF ou CNPJ.
+Também expõe a **ordem cronológica de pagamentos** e a consulta de fornecedor por CPF/CNPJ.
 
-Base URL de exemplo:
-
-```txt
-/api/empenhos
-```
+> Todos os endpoints de consulta de empenhos são **públicos** (não exigem token).
 
 ---
 
 ## Endpoints Disponíveis
 
-| Método     | Endpoint                              | Descrição                                                     |
-| ---------- | ------------------------------------- | ------------------------------------------------------------- |
-| GET        | `/api/empenhos`                       | Lista empenhos com filtros, resumos, liquidações e pagamentos |
-| GET        | `/api/empenhos/{id}`                  | Retorna o detalhe completo de um empenho                      |
-| GET/POST\* | `/api/empenhos/buscar-fornecedor-tce` | Consulta fornecedor externo por CPF/CNPJ                      |
+| Método | Endpoint                                         | Autenticação | Descrição                                                    |
+| ------ | ------------------------------------------------ | ------------ | ------------------------------------------------------------ |
+| GET    | `/api/empenhos`                                  | Pública      | Lista empenhos com filtros, totais, liquidações e pagamentos |
+| GET    | `/api/empenhos/{id}`                             | Pública      | Detalhe completo de um empenho                               |
+| GET    | `/api/empenhos/ordem-cronologica-pagamentos`     | Pública      | Ordem cronológica de pagamentos                              |
+| GET    | `/api/empenhos/buscarFornecedorTce/{cpfCnpj}`    | Pública      | Consulta fornecedor (banco local → TCE)                      |
+| PUT    | `/api/empenhos/{id}/diaria`                      | Token        | Cadastra/atualiza dados da diária                            |
+| DELETE | `/api/empenhos/{id}/diaria`                      | Token        | Remove dados da diária                                       |
 
-> \*O método do endpoint `buscarFornecedorTce` depende da rota cadastrada no projeto. Pelo controller, ele recebe `Request`, então normalmente é exposto como `GET` ou `POST`.
+- Ordem cronológica: ver [ordem_cronologica_pagamentos.md](./ordem_cronologica_pagamentos.md).
+- Diárias: ver [diarias.md](./diarias.md).
+- Referência completa dos filtros: ver [empenhos-filtros.md](./empenhos-filtros.md).
 
 ---
 
 # 1. Listar Empenhos
 
-## Endpoint
-
 ```http
 GET /api/empenhos
 ```
 
-## Descrição
+Retorna uma lista paginada de empenhos, ordenada por `data_empenho` (mais recente primeiro), com o bloco `totais` no topo.
 
-Retorna uma lista paginada de empenhos com:
+## Query Params
 
-- dados principais do empenho
-- resumo da liquidação
-- resumo do pagamento
-- lista de liquidações relacionadas
-- lista de pagamentos relacionadas
+| Parâmetro              | Tipo                  | Descrição                                                   |
+| ---------------------- | --------------------- | ----------------------------------------------------------- |
+| `competencia`          | string (`YYYY-MM`)    | Competência exata                                           |
+| `ano`                  | integer (2000–2100)   | Ano do empenho                                              |
+| `mes`                  | integer (1–12)        | Mês do empenho                                              |
+| `remessa_id`           | integer               | ID da remessa                                               |
+| `unidade_codigo`       | string                | Código da unidade orçamentária                              |
+| `unidade_orcamentaria` | string                | Código da unidade (alias para selects)                      |
+| `numero_empenho`       | string                | Número do empenho (match exato)                             |
+| `cpf_cnpj`             | string                | CPF ou CNPJ do credor, com ou sem máscara                   |
+| `beneficiario`         | string                | Nome do fornecedor (busca parcial)                          |
+| `data_ini`             | date (`YYYY-MM-DD`)   | Data inicial do empenho                                     |
+| `data_fim`             | date (`YYYY-MM-DD`)   | Data final do empenho                                       |
+| `min_valor`            | numeric               | Valor mínimo empenhado                                      |
+| `max_valor`            | numeric               | Valor máximo empenhado                                      |
+| `categoria_economica`  | string (1 char)       | 1º dígito da natureza da despesa                            |
+| `grupo_natureza`       | string (1 char)       | 2º dígito da natureza da despesa                            |
+| `elemento_despesa`     | string                | Um elemento de despesa (ex.: `14`)                          |
+| `elementos`            | string (CSV)          | Vários elementos (ex.: `14,30,39`)                          |
+| `modalidade_licitacao` | string                | Código da modalidade de licitação                           |
+| `somente_diarias`      | boolean               | Apenas empenhos de diárias (elemento `14`)                  |
+| `diaria_pendente`      | boolean               | Diárias ainda sem dados complementares cadastrados          |
+| `q`                    | string (máx. 100)     | Busca livre em número, descrição, unidade e CPF/CNPJ        |
+| `per_page`             | integer (1–200)       | Itens por página. Padrão `20`                               |
+| `export`               | boolean               | Retorna todos os registros, sem paginação                   |
 
----
+### Regras de `cpf_cnpj` e `q`
 
-## Query Params Aceitos
+- Caracteres não numéricos são removidos.
+- CPF (11 dígitos) também é procurado com zeros à esquerda (14 dígitos), pois `empenhos.cpf_cnpj_credor` é gravado com 14 dígitos.
+- `q` busca em `numero_empenho`, `descricao`, `unidade_codigo` e `cpf_cnpj_credor`.
 
-| Parâmetro        | Tipo    | Obrigatório | Descrição                                                |
-| ---------------- | ------- | ----------: | -------------------------------------------------------- |
-| `competencia`    | string  |         não | Competência no formato `YYYY-MM`                         |
-| `ano`            | integer |         não | Ano da remessa/empenho                                   |
-| `mes`            | integer |         não | Mês da remessa/empenho                                   |
-| `remessa_id`     | integer |         não | ID da remessa                                            |
-| `unidade_codigo` | string  |         não | Código da unidade orçamentária                           |
-| `numero_empenho` | string  |         não | Número do empenho                                        |
-| `cpf_cnpj`       | string  |         não | CPF ou CNPJ do credor, com ou sem máscara                |
-| `data_ini`       | string  |         não | Data inicial no formato `YYYY-MM-DD`                     |
-| `data_fim`       | string  |         não | Data final no formato `YYYY-MM-DD`                       |
-| `min_valor`      | number  |         não | Valor mínimo do empenho                                  |
-| `max_valor`      | number  |         não | Valor máximo do empenho                                  |
-| `q`              | string  |         não | Busca textual por número, descrição, unidade ou CPF/CNPJ |
-| `per_page`       | integer |         não | Quantidade por página. Padrão: `20`, máximo: `200`       |
-
----
-
-## Regras dos filtros
-
-### `cpf_cnpj`
-
-- remove automaticamente qualquer caractere não numérico
-- aceita:
-  - CPF com 11 dígitos
-  - CNPJ com 14 dígitos
-
-Exemplos válidos:
-
-- `12345678900`
-- `123.456.789-00`
-- `12345678000199`
-- `12.345.678/0001-99`
-
-### `q`
-
-Busca textual simples nos campos:
-
-- `numero_empenho`
-- `descricao`
-- `unidade_codigo`
-- `cpf_cnpj_credor`
-
-Quando `q` contiver um CPF/CNPJ válido, a busca usa a versão sem máscara.
-
----
-
-## Exemplos de uso
-
-### Filtrar por competência
+## Exemplos
 
 ```http
 GET /api/empenhos?competencia=2025-02
-```
-
-### Filtrar por ano e mês
-
-```http
-GET /api/empenhos?ano=2025&mes=2
-```
-
-### Filtrar por CPF/CNPJ
-
-```http
+GET /api/empenhos?ano=2025&mes=2&per_page=50
 GET /api/empenhos?cpf_cnpj=40.628.309/0001-45
+GET /api/empenhos?beneficiario=construtora&categoria_economica=4
+GET /api/empenhos?elementos=14,30&data_ini=2025-01-01&data_fim=2025-06-30
+GET /api/empenhos?ano=2025&export=1
 ```
 
-### Filtrar por número do empenho
-
-```http
-GET /api/empenhos?numero_empenho=0000049
-```
-
-### Busca textual
-
-```http
-GET /api/empenhos?q=carimbos
-```
-
-### Paginação
-
-```http
-GET /api/empenhos?competencia=2025-02&per_page=50
-```
-
----
-
-## Resposta de sucesso
-
-### Status
-
-```http
-200 OK
-```
-
-### Exemplo
+## Resposta (paginada)
 
 ```json
 {
+  "totais": {
+    "total_empenhado": "15240431.88",
+    "total_liquidado": "13098610.78",
+    "total_pago": "13049136.49"
+  },
   "current_page": 1,
   "data": [
     {
@@ -160,17 +105,48 @@ GET /api/empenhos?competencia=2025-02&per_page=50
       "ano": 2025,
       "mes": 2,
       "competencia": "2025-02",
+
       "unidade_codigo": "0000008001",
+      "unidade_orcamentaria": {
+        "codigo": "0000008001",
+        "denominacao": "CÂMARA MUNICIPAL",
+        "unidade_jurisdicionada": "..."
+      },
+
       "numero_empenho": "0000049",
       "empenho_key": "2025|0000008001|0000049",
       "data_empenho": "2025-02-24",
       "valor_empenhado": "180.00",
       "cpf_cnpj_credor": "40628309000145",
       "descricao": "REFERENTE A SERVIÇOS DE CONFECÇÃO...",
-      "natureza_despesa": "3.3.90.39.999",
-      "fonte_recurso": "15000000",
+
+      "funcao": "01",
+      "funcao_descricao": "Legislativa",
+      "subfuncao": "031",
+      "subfuncao_descricao": "Ação Legislativa",
       "programa_codigo": "7001",
+      "programa_descricao": null,
       "acao_codigo": "000017",
+      "acao_descricao": null,
+      "identificacao_acao": "2",
+      "identificacao_acao_descricao": "Atividade",
+      "natureza_despesa": "3.3.90.39.999",
+      "natureza_despesa_detalhada": {
+        "categoria": { "codigo": "3", "descricao": "Despesas Correntes" },
+        "grupo": { "codigo": "3", "descricao": "Outras Despesas Correntes" },
+        "modalidade": { "codigo": "90", "descricao": "Aplicações Diretas" },
+        "elemento": { "codigo": "39", "descricao": "Outros Serviços de Terceiros - Pessoa Jurídica" },
+        "subelemento": { "codigo": "999", "descricao": "..." }
+      },
+      "fonte_recurso": "15000000",
+      "fonte_recurso_descricao": "Recursos não Vinculados de Impostos",
+      "tipo_empenho": "1",
+      "tipo_empenho_descricao": "Ordinário",
+      "modalidade_licitacao": "8",
+      "modalidade_licitacao_descricao": "Dispensa",
+      "numero_procedimento": "000012025",
+      "cpf_ordenador": "00000000000",
+
       "created_at": "2026-01-21T19:44:44.000000Z",
       "updated_at": "2026-01-21T19:44:44.000000Z",
 
@@ -179,13 +155,22 @@ GET /api/empenhos?competencia=2025-02&per_page=50
         "total_liquidado": "180.00",
         "saldo_a_liquidar": "0.00"
       },
-
       "resumo_pagamento": {
         "quantidade_pagamentos": 1,
         "quantidade_itens": 1,
         "total_pago": "180.00",
         "saldo_a_pagar": "0.00"
       },
+
+      "fornecedor": {
+        "id": 3,
+        "cpf_cnpj": "40628309000145",
+        "nome": "EMPRESA EXEMPLO LTDA",
+        "tipo_pessoa": "PJ",
+        "cargo": null
+      },
+
+      "diaria": null,
 
       "liquidacoes": [
         {
@@ -204,8 +189,8 @@ GET /api/empenhos?competencia=2025-02&per_page=50
           "chave_nfe": null,
           "descricao": "REFERENTE A SERVIÇOS...",
           "fonte_recurso": "15000000",
-          "created_at": "2026-01-21T20:10:00.000000Z",
-          "updated_at": "2026-01-21T20:10:00.000000Z"
+          "created_at": "...",
+          "updated_at": "..."
         }
       ],
 
@@ -222,70 +207,81 @@ GET /api/empenhos?competencia=2025-02&per_page=50
           "numero_parcela": "0000001",
           "pagamento_key": "2025|0000008001|0000049|0000001",
           "data_pagamento": "2025-02-28",
-          "created_at": "2026-01-21T20:15:00.000000Z",
-          "updated_at": "2026-01-21T20:15:00.000000Z"
+          "valor_pago": "180.00",
+          "created_at": "...",
+          "updated_at": "..."
         }
       ]
     }
   ],
   "per_page": 20,
-  "total": 1
+  "total": 803
 }
 ```
 
----
+> Os valores das descrições acima são ilustrativos; vêm das tabelas internas em `resources/tabelas_internas`.
 
-## Campos retornados na listagem
+## Resposta com `export=1`
 
-### Dados do empenho
+Sem paginação. Retorna todos os registros que atendem aos filtros:
 
-| Campo              | Tipo        | Descrição                      |
-| ------------------ | ----------- | ------------------------------ |
-| `id`               | integer     | ID interno do empenho          |
-| `remessa_id`       | integer     | ID da remessa de origem        |
-| `ano`              | integer     | Ano do empenho/remessa         |
-| `mes`              | integer     | Mês do empenho/remessa         |
-| `competencia`      | string      | Competência `YYYY-MM`          |
-| `unidade_codigo`   | string      | Código da unidade orçamentária |
-| `numero_empenho`   | string      | Número do empenho              |
-| `empenho_key`      | string      | Chave técnica do empenho       |
-| `data_empenho`     | string/null | Data do empenho                |
-| `valor_empenhado`  | string      | Valor empenhado com 2 casas    |
-| `cpf_cnpj_credor`  | string/null | CPF ou CNPJ do credor          |
-| `descricao`        | string/null | Histórico do empenho           |
-| `natureza_despesa` | string/null | Natureza da despesa formatada  |
-| `fonte_recurso`    | string/null | Fonte de recurso               |
-| `programa_codigo`  | string/null | Código do programa             |
-| `acao_codigo`      | string/null | Código da ação                 |
+```json
+{
+  "exported": true,
+  "total_registros": 803,
+  "totais": {
+    "total_empenhado": "15240431.88",
+    "total_liquidado": "13098610.78",
+    "total_pago": "13049136.49"
+  },
+  "dados": [ { "...": "mesmo formato de cada item de data" } ]
+}
+```
 
-### Resumo da liquidação
+## Bloco `totais`
 
-| Campo              | Tipo    | Descrição                         |
-| ------------------ | ------- | --------------------------------- |
-| `quantidade`       | integer | Quantidade de liquidações         |
-| `total_liquidado`  | string  | Soma dos valores liquidados       |
-| `saldo_a_liquidar` | string  | Valor empenhado - valor liquidado |
+| Campo             | Descrição                                                          |
+| ----------------- | ------------------------------------------------------------------ |
+| `total_empenhado` | Soma de `valor_empenhado` de **todos** os empenhos filtrados       |
+| `total_liquidado` | Soma das liquidações desses empenhos (por `empenho_key`)           |
+| `total_pago`      | Soma dos itens de pagamento desses empenhos (por `empenho_key`)    |
 
-### Resumo do pagamento
+Os totais não dependem da página atual: mudar de página não altera os valores; mudar um filtro altera. Sem resultados, vêm como `"0.00"`.
+
+## Bloco `resumo_liquidacao`
+
+| Campo              | Tipo    | Descrição                       |
+| ------------------ | ------- | ------------------------------- |
+| `quantidade`       | integer | Quantidade de liquidações       |
+| `total_liquidado`  | string  | Soma de `valor_liquidado`       |
+| `saldo_a_liquidar` | string  | Valor empenhado − liquidado     |
+
+## Bloco `resumo_pagamento`
 
 | Campo                   | Tipo    | Descrição                                 |
 | ----------------------- | ------- | ----------------------------------------- |
-| `quantidade_pagamentos` | integer | Quantidade de registros em pagamentos     |
+| `quantidade_pagamentos` | integer | Quantidade de pagamentos                  |
 | `quantidade_itens`      | integer | Quantidade de itens de pagamento          |
 | `total_pago`            | string  | Soma de `itens_pagamento.valor_pagamento` |
-| `saldo_a_pagar`         | string  | Valor liquidado - valor pago              |
+| `saldo_a_pagar`         | string  | Valor liquidado − pago                    |
 
----
+## Bloco `fornecedor`
 
-## Erros de validação
+Buscado no cadastro local de fornecedores; se não existir, é consultado no TCE (limitado a ~10 s de consultas por requisição na listagem). Quando não encontrado, `id`, `nome`, `tipo_pessoa` e `cargo` vêm `null`, e `cpf_cnpj` traz o documento do credor.
 
-### Status
+| Campo         | Descrição                                   |
+| ------------- | ------------------------------------------- |
+| `id`          | ID do fornecedor (usado em `/fornecedores`) |
+| `cpf_cnpj`    | CPF (11) ou CNPJ (14)                       |
+| `nome`        | Nome ou razão social                        |
+| `tipo_pessoa` | `PF` ou `PJ`                                |
+| `cargo`       | Cargo atual do beneficiário (diárias)       |
 
-```http
-422 Unprocessable Entity
-```
+## Bloco `diaria`
 
-### Exemplo
+Dados complementares de empenhos de diárias, ou `null`. Ver [diarias.md](./diarias.md).
+
+## Erros de validação (`422`)
 
 ```json
 {
@@ -296,252 +292,105 @@ GET /api/empenhos?competencia=2025-02&per_page=50
 }
 ```
 
-### Casos comuns
-
-- `competencia` fora do formato `YYYY-MM`
-- `ano` fora do intervalo permitido
-- `mes` fora do intervalo `1..12`
-- `data_ini` ou `data_fim` inválidas
-- `per_page` menor que 1 ou maior que 200
+Casos comuns: `competencia` fora de `YYYY-MM`, `ano` fora de 2000–2100, `mes` fora de 1–12, datas inválidas, `per_page` fora de 1–200.
 
 ---
 
 # 2. Detalhar Empenho
 
-## Endpoint
-
 ```http
 GET /api/empenhos/{id}
 ```
 
-## Descrição
+Retorna os mesmos campos de um item da listagem (sem o bloco `totais`), mais a lista `itens_pagamento`.
 
-Retorna os dados completos de um empenho específico, incluindo:
-
-- resumo da liquidação
-- resumo do pagamento
-- lista de liquidações
-- lista de pagamentos
-- lista de itens de pagamento
-
----
-
-## Exemplo de requisição
-
-```http
-GET /api/empenhos/88
-```
-
----
-
-## Resposta de sucesso
-
-### Status
-
-```http
-200 OK
-```
-
-### Exemplo
+### `itens_pagamento`
 
 ```json
 {
-  "id": 88,
+  "id": 5,
   "remessa_id": 8,
-  "ano": 2025,
-  "mes": 2,
   "competencia": "2025-02",
   "unidade_codigo": "0000008001",
   "numero_empenho": "0000049",
   "empenho_key": "2025|0000008001|0000049",
-  "data_empenho": "2025-02-24",
-  "valor_empenhado": "180.00",
-  "cpf_cnpj_credor": "40628309000145",
-  "descricao": "REFERENTE A SERVIÇOS DE CONFECÇÃO...",
-  "natureza_despesa": "3.3.90.39.999",
+  "numero_pagamento": "0000001",
+  "pagamento_key": "2025|0000008001|0000049|0000001",
+  "numero_sequencial": "001",
+  "item_pagamento_key": "...",
+  "valor_pagamento": "180.00",
+  "conta_debito": "...",
+  "numero_cheque": null,
+  "numero_doc_debito": "...",
+  "banco_credito": "001",
+  "agencia_credito": "...",
+  "conta_credito": "...",
   "fonte_recurso": "15000000",
-  "programa_codigo": "7001",
-  "acao_codigo": "000017",
-
-  "resumo_liquidacao": {
-    "quantidade": 1,
-    "total_liquidado": "180.00",
-    "saldo_a_liquidar": "0.00"
-  },
-
-  "resumo_pagamento": {
-    "quantidade_pagamentos": 1,
-    "quantidade_itens": 1,
-    "total_pago": "180.00",
-    "saldo_a_pagar": "0.00"
-  },
-
-  "liquidacoes": [],
-  "pagamentos": [],
-  "itens_pagamento": []
+  "tipo_conta_debito": "...",
+  "tipo_pagamento": "...",
+  "chave_pix": null,
+  "created_at": "...",
+  "updated_at": "..."
 }
 ```
 
----
-
-## Estrutura adicional do `show()`
-
-### `liquidacoes`
-
-Lista de liquidações relacionadas ao empenho, contendo:
-
-- `ano`
-- `numero_liquidacao`
-- `data_liquidacao`
-- `valor_liquidado`
-- `tipo_documento`
-- `chave_nfe`
-- `descricao`
-- `fonte_recurso`
-
-### `pagamentos`
-
-Lista de pagamentos relacionados ao empenho, contendo:
-
-- `ano`
-- `numero_empenho`
-- `numero_pagamento`
-- `numero_parcela`
-- `data_pagamento`
-
-### `itens_pagamento`
-
-Lista de itens financeiros do pagamento, contendo:
-
-- `numero_sequencial`
-- `valor_pagamento`
-- `conta_debito`
-- `numero_cheque`
-- `numero_doc_debito`
-- `banco_credito`
-- `agencia_credito`
-- `conta_credito`
-- `fonte_recurso`
-- `tipo_conta_debito`
-- `tipo_pagamento`
-- `chave_pix`
+Retorna `404` quando o empenho não existe.
 
 ---
 
-## Resposta quando não encontrado
+# 3. Buscar fornecedor (TCE)
 
 ```http
-404 Not Found
+GET /api/empenhos/buscarFornecedorTce/{cpfCnpj}
 ```
 
----
+Mesmo fluxo de `GET /api/fornecedores/buscar/{cpfCnpj}`, mas público: consulta o banco local e, se não encontrar, a API do TCE (salvando o resultado localmente).
 
-# 3. Buscar fornecedor no TCE
-
-## Endpoint
-
-```http
-GET /api/empenhos/buscar-fornecedor-tce?cpf_cnpj=40628309000145
-```
-
-> A rota exata depende do arquivo `routes/api.php`. Este exemplo assume exposição via GET.
-
-## Descrição
-
-Consulta um fornecedor em serviço externo do TCE usando CPF ou CNPJ.
-
----
-
-## Query params
-
-| Parâmetro  | Tipo   | Obrigatório | Descrição                      |
-| ---------- | ------ | ----------: | ------------------------------ |
-| `cpf_cnpj` | string |         sim | CPF ou CNPJ com ou sem máscara |
-
----
-
-## Regras
-
-- remove máscara automaticamente
-- aceita:
-  - CPF com 11 dígitos
-  - CNPJ com 14 dígitos
-
----
-
-## Resposta de sucesso
-
-Retorna o JSON bruto da API externa do TCE.
-
-### Status
-
-```http
-200 OK
-```
-
-### Exemplo
+### Sucesso (`200`)
 
 ```json
 {
-  "documento": "40628309000145",
-  "nome": "EMPRESA EXEMPLO LTDA",
-  "situacao": "ATIVO"
+  "success": true,
+  "origem": "TCE",
+  "data": {
+    "id": 4,
+    "cpf_cnpj": "40628309000145",
+    "nome": "EMPRESA EXEMPLO LTDA",
+    "tipo_pessoa": "PJ",
+    "cargo": null
+  }
 }
 ```
 
----
+`origem` é `LOCAL` ou `TCE`.
 
-## Erros possíveis
-
-### CPF/CNPJ inválido
-
-```http
-422 Unprocessable Entity
-```
+### Não encontrado ou documento inválido (`404`)
 
 ```json
 {
-  "error": "CPF ou CNPJ inválido"
-}
-```
-
-### Falha na API externa
-
-```http
-500 Internal Server Error
-```
-
-```json
-{
-  "error": "Erro ao consultar fornecedor no TCE"
+  "success": false,
+  "message": "Fornecedor não encontrado."
 }
 ```
 
 ---
 
-# Observações importantes para o front-end
+# Observações para o front-end
 
-- `valor_empenhado`, `total_liquidado`, `total_pago`, `saldo_a_liquidar` e `saldo_a_pagar` vêm como **string decimal**.
-- `cpf_cnpj` pode ser enviado com ou sem máscara.
-- O campo `numero_parcela` em pagamentos é retornado com o mesmo valor de `numero_pagamento`.
-- O valor efetivamente pago é calculado a partir de `itens_pagamento.valor_pagamento`.
-- O endpoint `index()` retorna listas embutidas de `liquidacoes` e `pagamentos`, então o payload pode crescer bastante para páginas maiores.
+- Valores monetários vêm como **string decimal** com ponto (`"180.00"`). Converta com `Number(...)` antes de formatar.
+- `unidade_codigo` é retornado sempre com 10 dígitos (zeros à esquerda).
+- `numero_parcela` em pagamentos tem o mesmo valor de `numero_pagamento`.
+- O valor pago é calculado a partir de `itens_pagamento.valor_pagamento`.
+- `programa_descricao` e `acao_descricao` ainda vêm sempre `null`.
+- A listagem traz `liquidacoes` e `pagamentos` embutidos; o payload cresce com `per_page` alto.
 
 ---
 
-# Resumo do fluxo financeiro
+# Fluxo financeiro
 
 ```txt
-Empenho
-   ↓
-Liquidação
-   ↓
-Pagamento
-   ↓
-ItemPagamento
+Empenho → Liquidação → Pagamento → ItemPagamento
 ```
-
-### Interpretação
 
 - **Empenho**: autorização da despesa
 - **Liquidação**: reconhecimento da despesa
